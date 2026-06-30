@@ -43,19 +43,24 @@ class PluginSocfieldsTicketField extends CommonGLPI {
             return;
         }
 
+        // Show fields immediately only when the ticket is already Resolved/Closed
+        $current_status = (int) ($item->fields['status'] ?? 0);
+        $already_closed = in_array($current_status, [CommonITILObject::SOLVED, CommonITILObject::CLOSED], true);
+
+        $field_ids = [];
+
         foreach ($all_fields as $field) {
             $field_id = (int) $field['id'];
             $parents  = PluginSocfieldsConfig::getParentOptionsByField($field_id);
             if (empty($parents)) {
                 continue;
             }
-            $children_map = PluginSocfieldsConfig::getChildOptionsByField($field_id);
-            $saved        = self::getForTicket($tickets_id, $field_id);
-            $saved_pv     = $saved['parent_value'] ?? '';
-            $saved_cv     = $saved['child_value']  ?? '';
+            $children_map   = PluginSocfieldsConfig::getChildOptionsByField($field_id);
+            $saved          = self::getForTicket($tickets_id, $field_id);
+            $saved_pv       = $saved['parent_value'] ?? '';
+            $saved_cv       = $saved['child_value']  ?? '';
 
-            // Build JS cascade map for this field
-            $js_cascade     = [];
+            $js_cascade       = [];
             $all_child_labels = [];
             foreach ($parents as $parent) {
                 $child_list = array_map(fn($c) => $c['label'], $children_map[$parent['id']] ?? []);
@@ -73,9 +78,13 @@ class PluginSocfieldsTicketField extends CommonGLPI {
             $pname        = 'plugin_socfields_' . $field_id . '_parent';
             $cname        = 'plugin_socfields_' . $field_id . '_child';
             $req_mark     = $field['required'] ? ' <span class="text-danger">*</span>' : '';
+            // Hidden until status → Resolved/Closed (controlled by JS below)
+            $hidden_style = $already_closed ? '' : ' style="display:none"';
+
+            $field_ids[] = $field_id;
 
             // ── Parent dropdown ──────────────────────────────────────────────
-            echo '<div class="form-field row align-items-center col-12 glpi-full-width mb-2">';
+            echo '<div class="form-field row align-items-center col-12 glpi-full-width mb-2 socf-field-row"' . $hidden_style . '>';
             echo '<label for="' . $pid . '" class="col-form-label col-xxl-5 text-xxl-end">' . $parent_label . $req_mark . '</label>';
             echo '<div class="col-xxl-7 field-container">';
             echo '<select id="' . $pid . '" name="' . $pname . '" class="form-select">';
@@ -87,7 +96,7 @@ class PluginSocfieldsTicketField extends CommonGLPI {
             echo '</select></div></div>';
 
             // ── Child dropdown ───────────────────────────────────────────────
-            echo '<div class="form-field row align-items-center col-12 glpi-full-width mb-2">';
+            echo '<div class="form-field row align-items-center col-12 glpi-full-width mb-2 socf-field-row"' . $hidden_style . '>';
             echo '<label for="' . $cid . '" class="col-form-label col-xxl-5 text-xxl-end">' . $child_label . $req_mark . '</label>';
             echo '<div class="col-xxl-7 field-container">';
             echo '<select id="' . $cid . '" name="' . $cname . '" class="form-select">';
@@ -98,7 +107,7 @@ class PluginSocfieldsTicketField extends CommonGLPI {
             }
             echo '</select></div></div>';
 
-            // ── JS: cascade + block-on-close ────────────────────────────────
+            // ── Per-field JS: cascade rebuild ────────────────────────────────
             $cfg_js          = json_encode(['cascade' => $js_cascade, 'all_child' => $all_child_labels, 'saved_pv' => $saved_pv, 'saved_cv' => $saved_cv, 'pid' => $pid, 'cid' => $cid]);
             $parent_label_js = json_encode($parent_label);
             $child_label_js  = json_encode($child_label);
@@ -156,7 +165,7 @@ class PluginSocfieldsTicketField extends CommonGLPI {
 
     if (!required) return;
 
-    // Block form submit if status → Resolved(5)/Closed(6) and this required field is empty
+    // Block submit when status → Resolved/Closed and this required field is empty
     var form = document.getElementById('itil-form');
     if (form && !form.__socfListenerAdded_{$field_id}) {
         form.__socfListenerAdded_{$field_id} = true;
@@ -184,6 +193,63 @@ class PluginSocfieldsTicketField extends CommonGLPI {
 </script>
 JS;
         }
+
+        // ── Single JS block: show/hide all SOC rows when status changes ──────
+        $already_closed_js = $already_closed ? 'true' : 'false';
+        echo <<<JS
+<script>
+(function () {
+    if (window.__socfStatusWatcherAdded) return;
+    window.__socfStatusWatcherAdded = true;
+
+    function setSocfVisible(show) {
+        document.querySelectorAll('.socf-field-row').forEach(function (el) {
+            el.style.display = show ? '' : 'none';
+        });
+    }
+
+    function getStatusValue(statusEl) {
+        if (statusEl.tomselect) return parseInt(statusEl.tomselect.getValue(), 10);
+        return parseInt(statusEl.value, 10);
+    }
+
+    function checkAndToggle(statusEl) {
+        var st = getStatusValue(statusEl);
+        setSocfVisible(st === 5 || st === 6);
+    }
+
+    function setupStatusWatcher() {
+        var statusEl = document.querySelector('[name="status"]');
+        if (!statusEl) return;
+
+        // Initial state
+        if (!{$already_closed_js}) {
+            checkAndToggle(statusEl);
+        }
+
+        // Watch changes
+        if (statusEl.tomselect) {
+            statusEl.tomselect.on('change', function () { checkAndToggle(statusEl); });
+        } else {
+            statusEl.addEventListener('change', function () { checkAndToggle(statusEl); });
+        }
+    }
+
+    function waitForStatusTS(n) {
+        var statusEl = document.querySelector('[name="status"]');
+        if (statusEl && statusEl.tomselect) { setupStatusWatcher(); }
+        else if (n > 0) { setTimeout(function () { waitForStatusTS(n - 1); }, 80); }
+        else { setupStatusWatcher(); }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () { waitForStatusTS(20); });
+    } else {
+        waitForStatusTS(20);
+    }
+})();
+</script>
+JS;
     }
 
     // ── pre_item_update: save all SOC fields + validate required on close ─────
