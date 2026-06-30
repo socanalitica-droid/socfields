@@ -184,14 +184,11 @@ class PluginSocfieldsTicketField extends CommonGLPI {
 JS;
         }
 
-    }
-
-        // ── CSS + JS: strip Bootstrap is-valid (green checkmark) from SOC fields ──
+        // ── CSS + JS: strip Bootstrap is-valid (green checkmark) — emitted once ──
         if (!isset($GLOBALS['socf_style_injected'])) {
             $GLOBALS['socf_style_injected'] = true;
             echo <<<'HTML'
 <style>
-/* Neutralize Bootstrap was-validated green state on SOC custom dropdowns */
 .socf-field .ts-wrapper.is-valid,
 .socf-field .ts-wrapper.is-valid .ts-control,
 form.was-validated .socf-field .socf-select:valid,
@@ -202,26 +199,19 @@ form.was-validated .socf-field .socf-select:valid,
 }
 </style>
 <script>
-// Watch Tom Select wrappers inside .socf-field and strip is-valid whenever Bootstrap adds it
 (function () {
     function stripValid() {
         document.querySelectorAll('.socf-field .ts-wrapper').forEach(function (w) {
-            if (w.classList.contains('is-valid')) {
-                w.classList.remove('is-valid');
-            }
+            w.classList.remove('is-valid');
         });
     }
-    // Run on form submit (before Bootstrap validation kicks in visually)
     document.addEventListener('submit', function () { setTimeout(stripValid, 0); }, true);
-    // Also run after DOMContentLoaded in case GLPI already validated
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', stripValid);
     } else {
         stripValid();
     }
-    // MutationObserver as final safety net
-    var observer = new MutationObserver(stripValid);
-    observer.observe(document.body, { subtree: true, attributeFilter: ['class'] });
+    new MutationObserver(stripValid).observe(document.body, { subtree: true, attributeFilter: ['class'] });
 })();
 </script>
 HTML;
