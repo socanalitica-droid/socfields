@@ -198,45 +198,45 @@ JS;
         $tickets_id = (int) $item->getID();
         $all_fields = PluginSocfieldsConfig::getAllFields();
 
-        foreach ($all_fields as $field) {
-            $field_id = (int) $field['id'];
-            $pv_key   = 'plugin_socfields_' . $field_id . '_parent';
-            $cv_key   = 'plugin_socfields_' . $field_id . '_child';
+        // Determine the resulting status after this save
+        $new_status = (int) ($item->input['status'] ?? $_POST['status'] ?? $item->fields['status'] ?? 0);
+        $is_closing = in_array($new_status, [CommonITILObject::SOLVED, CommonITILObject::CLOSED], true);
 
-            $pv = isset($_POST[$pv_key]) ? trim($_POST[$pv_key]) : null;
-            $cv = isset($_POST[$cv_key]) ? trim($_POST[$cv_key]) : null;
+        // Only save SOC values when the ticket is being Resolved or Closed —
+        // this prevents the "saved" visual indicator from appearing on other status changes.
+        if ($is_closing) {
+            foreach ($all_fields as $field) {
+                $field_id = (int) $field['id'];
+                $pv_key   = 'plugin_socfields_' . $field_id . '_parent';
+                $cv_key   = 'plugin_socfields_' . $field_id . '_child';
 
-            if ($pv !== null && $cv !== null && $pv !== '' && $cv !== '') {
-                $valid_children = PluginSocfieldsConfig::getChildLabelsForParent($field_id, $pv);
-                if (in_array($cv, $valid_children, true)) {
-                    self::saveForTicket($tickets_id, $field_id, $pv, $cv);
+                $pv = isset($_POST[$pv_key]) ? trim($_POST[$pv_key]) : null;
+                $cv = isset($_POST[$cv_key]) ? trim($_POST[$cv_key]) : null;
+
+                if ($pv !== null && $cv !== null && $pv !== '' && $cv !== '') {
+                    $valid_children = PluginSocfieldsConfig::getChildLabelsForParent($field_id, $pv);
+                    if (in_array($cv, $valid_children, true)) {
+                        self::saveForTicket($tickets_id, $field_id, $pv, $cv);
+                    }
                 }
             }
-        }
 
-        // Validate required fields on Resolved/Closed
-        if (!isset($item->input['status'])) {
-            return;
-        }
-        $new_status = (int) $item->input['status'];
-        if (!in_array($new_status, [CommonITILObject::SOLVED, CommonITILObject::CLOSED], true)) {
-            return;
-        }
-
-        foreach ($all_fields as $field) {
-            if (!$field['required']) {
-                continue;
-            }
-            $field_id = (int) $field['id'];
-            $data     = self::getForTicket($tickets_id, $field_id);
-            if (empty($data['parent_value']) || empty($data['child_value'])) {
-                Session::addMessageAfterRedirect(
-                    '⚠️ SOC Classification requerida: selecciona "' . $field['label_parent'] . '" y "' . $field['label_child'] . '" antes de resolver o cerrar el ticket.',
-                    false,
-                    ERROR
-                );
-                $item->input = false;
-                return;
+            // Validate required fields before allowing close
+            foreach ($all_fields as $field) {
+                if (!$field['required']) {
+                    continue;
+                }
+                $field_id = (int) $field['id'];
+                $data     = self::getForTicket($tickets_id, $field_id);
+                if (empty($data['parent_value']) || empty($data['child_value'])) {
+                    Session::addMessageAfterRedirect(
+                        '⚠️ SOC Classification requerida: selecciona "' . $field['label_parent'] . '" y "' . $field['label_child'] . '" antes de resolver o cerrar el ticket.',
+                        false,
+                        ERROR
+                    );
+                    $item->input = false;
+                    return;
+                }
             }
         }
     }
