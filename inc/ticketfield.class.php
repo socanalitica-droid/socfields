@@ -74,10 +74,10 @@ class PluginSocfieldsTicketField extends CommonGLPI {
             $req_mark     = $field['required'] ? ' <span class="text-danger">*</span>' : '';
 
             // ── Parent dropdown ──────────────────────────────────────────────
-            echo '<div class="form-field row align-items-center col-12 glpi-full-width mb-2">';
+            echo '<div class="form-field row align-items-center col-12 glpi-full-width mb-2 socf-field">';
             echo '<label for="' . $pid . '" class="col-form-label col-xxl-5 text-xxl-end">' . $parent_label . $req_mark . '</label>';
             echo '<div class="col-xxl-7 field-container">';
-            echo '<select id="' . $pid . '" name="' . $pname . '" class="form-select">';
+            echo '<select id="' . $pid . '" name="' . $pname . '" class="form-select socf-select">';
             echo '<option value="">—</option>';
             foreach ($parents as $p) {
                 $sel = ($p['label'] === $saved_pv) ? ' selected' : '';
@@ -86,10 +86,10 @@ class PluginSocfieldsTicketField extends CommonGLPI {
             echo '</select></div></div>';
 
             // ── Child dropdown ───────────────────────────────────────────────
-            echo '<div class="form-field row align-items-center col-12 glpi-full-width mb-2">';
+            echo '<div class="form-field row align-items-center col-12 glpi-full-width mb-2 socf-field">';
             echo '<label for="' . $cid . '" class="col-form-label col-xxl-5 text-xxl-end">' . $child_label . $req_mark . '</label>';
             echo '<div class="col-xxl-7 field-container">';
-            echo '<select id="' . $cid . '" name="' . $cname . '" class="form-select">';
+            echo '<select id="' . $cid . '" name="' . $cname . '" class="form-select socf-select">';
             echo '<option value="">—</option>';
             foreach ($all_child_labels as $cl) {
                 $sel = ($cl === $saved_cv) ? ' selected' : '';
@@ -184,6 +184,48 @@ class PluginSocfieldsTicketField extends CommonGLPI {
 JS;
         }
 
+    }
+
+        // ── CSS + JS: strip Bootstrap is-valid (green checkmark) from SOC fields ──
+        if (!isset($GLOBALS['socf_style_injected'])) {
+            $GLOBALS['socf_style_injected'] = true;
+            echo <<<'HTML'
+<style>
+/* Neutralize Bootstrap was-validated green state on SOC custom dropdowns */
+.socf-field .ts-wrapper.is-valid,
+.socf-field .ts-wrapper.is-valid .ts-control,
+form.was-validated .socf-field .socf-select:valid,
+.socf-field .socf-select.is-valid {
+    border-color: var(--tblr-border-color, #dee2e6) !important;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l4 4 4-4'/%3e%3c/svg%3e") !important;
+    box-shadow: none !important;
+}
+</style>
+<script>
+// Watch Tom Select wrappers inside .socf-field and strip is-valid whenever Bootstrap adds it
+(function () {
+    function stripValid() {
+        document.querySelectorAll('.socf-field .ts-wrapper').forEach(function (w) {
+            if (w.classList.contains('is-valid')) {
+                w.classList.remove('is-valid');
+            }
+        });
+    }
+    // Run on form submit (before Bootstrap validation kicks in visually)
+    document.addEventListener('submit', function () { setTimeout(stripValid, 0); }, true);
+    // Also run after DOMContentLoaded in case GLPI already validated
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', stripValid);
+    } else {
+        stripValid();
+    }
+    // MutationObserver as final safety net
+    var observer = new MutationObserver(stripValid);
+    observer.observe(document.body, { subtree: true, attributeFilter: ['class'] });
+})();
+</script>
+HTML;
+        }
     }
 
     // ── pre_item_update: save all SOC fields + validate required on close ─────
