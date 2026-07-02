@@ -6,7 +6,7 @@ Plugin para GLPI 11 desarrollado por el **SOC Team de Linktic**. Agrega campos d
 
 - **Dropdowns en cascada** configurables desde el panel de administración (ej: "Acción Tomada" → "Causa Raíz")
 - **Múltiples pares de campos** — el admin puede agregar cuantos pares en cascada necesite
-- **Campo requerido** — cada par puede marcarse como obligatorio; si lo está, el ticket no se puede Resolver ni Cerrar hasta que estén seleccionados
+- **Campo requerido** — cada par puede marcarse como obligatorio; si lo está, el ticket no se puede Cerrar hasta que estén seleccionados
 - **Integración nativa con GLPI 11** — usa el mismo CSS del panel lateral y los dropdowns Tom Select del core
 - **Opciones por defecto** precargadas: Malicious, Not Malicious, Maintenance, Inconclusive (con sus hijos)
 

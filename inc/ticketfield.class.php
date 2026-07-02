@@ -163,12 +163,12 @@ class PluginSocfieldsTicketField extends CommonGLPI {
             var statusEl = form.querySelector('[name="status"]');
             if (!statusEl) return;
             var st = parseInt(statusEl.value, 10);
-            if (st !== 5 && st !== 6) return;
+            if (st !== 6) return;
             var pv = (pSel.tomselect ? pSel.tomselect.getValue() : pSel.value) || '';
             var cv = (cSel.tomselect ? cSel.tomselect.getValue() : cSel.value) || '';
             if (pv && cv) return;
             e.preventDefault(); e.stopImmediatePropagation();
-            var msg = 'SOC Classification requerida: selecciona ' + {$parent_label_js} + ' y ' + {$child_label_js} + ' antes de resolver o cerrar el ticket.';
+            var msg = 'SOC Classification requerida: selecciona ' + {$parent_label_js} + ' y ' + {$child_label_js} + ' antes de cerrar el ticket.';
             var banner = document.querySelector('.alerts-container, #message_after_redirect');
             if (banner) {
                 var div = document.createElement('div');
@@ -232,9 +232,9 @@ HTML;
 
         // Determine the resulting status after this save
         $new_status = (int) ($item->input['status'] ?? $_POST['status'] ?? $item->fields['status'] ?? 0);
-        $is_closing = in_array($new_status, [CommonITILObject::SOLVED, CommonITILObject::CLOSED], true);
+        $is_closing = ($new_status === CommonITILObject::CLOSED);
 
-        // Only save SOC values when the ticket is being Resolved or Closed —
+        // Only save SOC values when the ticket is being Closed —
         // this prevents the "saved" visual indicator from appearing on other status changes.
         if ($is_closing) {
             foreach ($all_fields as $field) {
@@ -262,7 +262,7 @@ HTML;
                 $data     = self::getForTicket($tickets_id, $field_id);
                 if (empty($data['parent_value']) || empty($data['child_value'])) {
                     Session::addMessageAfterRedirect(
-                        '⚠️ SOC Classification requerida: selecciona "' . $field['label_parent'] . '" y "' . $field['label_child'] . '" antes de resolver o cerrar el ticket.',
+                        '⚠️ SOC Classification requerida: selecciona "' . $field['label_parent'] . '" y "' . $field['label_child'] . '" antes de cerrar el ticket.',
                         false,
                         ERROR
                     );
