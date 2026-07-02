@@ -97,8 +97,20 @@ class PluginSocfieldsTicketField extends CommonGLPI {
             }
             echo '</select></div></div>';
 
-            // ── Per-field JS: cascade rebuild ────────────────────────────────
-            $cfg_js          = json_encode(['cascade' => $js_cascade, 'all_child' => $all_child_labels, 'saved_pv' => $saved_pv, 'saved_cv' => $saved_cv, 'pid' => $pid, 'cid' => $cid]);
+            // ── Per-field JS: cascade rebuild + AJAX autosave ─────────────────
+            $save_url = Plugin::getWebDir('socfields') . '/front/ticketfield.form.php';
+            $cfg_js          = json_encode([
+                'cascade'    => $js_cascade,
+                'all_child'  => $all_child_labels,
+                'saved_pv'   => $saved_pv,
+                'saved_cv'   => $saved_cv,
+                'pid'        => $pid,
+                'cid'        => $cid,
+                'tickets_id' => $tickets_id,
+                'field_id'   => $field_id,
+                'save_url'   => $save_url,
+                'csrf'       => Session::getNewCSRFToken(),
+            ]);
             $parent_label_js = json_encode($parent_label);
             $child_label_js  = json_encode($child_label);
             $required_js     = $field['required'] ? 'true' : 'false';
@@ -132,12 +144,39 @@ class PluginSocfieldsTicketField extends CommonGLPI {
         }
     }
 
+    function currentValues() {
+        var pv = (pSel.tomselect ? pSel.tomselect.getValue() : pSel.value) || '';
+        var cv = (cSel.tomselect ? cSel.tomselect.getValue() : cSel.value) || '';
+        return [pv, cv];
+    }
+
+    function autosave() {
+        var vals = currentValues();
+        var body = new URLSearchParams();
+        body.set('tickets_id', cfg.tickets_id);
+        body.set('field_id', cfg.field_id);
+        body.set('parent_value', vals[0]);
+        body.set('child_value', vals[1]);
+        body.set('_glpi_csrf_token', cfg.csrf);
+        fetch(cfg.save_url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            body: body.toString(),
+            credentials: 'same-origin'
+        }).catch(function () {});
+    }
+
     function setupCascade() {
         rebuildChild(cfg.saved_cv);
         if (pSel.tomselect) {
-            pSel.tomselect.on('change', function () { rebuildChild(''); });
+            pSel.tomselect.on('change', function () { rebuildChild(''); autosave(); });
         } else {
-            pSel.addEventListener('change', function () { rebuildChild(''); });
+            pSel.addEventListener('change', function () { rebuildChild(''); autosave(); });
+        }
+        if (cSel.tomselect) {
+            cSel.tomselect.on('change', autosave);
+        } else {
+            cSel.addEventListener('change', autosave);
         }
     }
 
@@ -273,6 +312,38 @@ HTML;
         }
     }
 
+    // ── pre_item_add (ITILSolution): block giving a solution until required SOC fields are saved ──
+
+    static function preSolutionAdd($item): void {
+        $tickets_id = 0;
+        if (($item->input['itemtype'] ?? '') === 'Ticket') {
+            $tickets_id = (int) ($item->input['items_id'] ?? 0);
+        }
+        if (!$tickets_id) {
+            return;
+        }
+
+        include_once Plugin::getPhpDir('socfields') . '/inc/config.class.php';
+        $all_fields = PluginSocfieldsConfig::getAllFields();
+
+        foreach ($all_fields as $field) {
+            if (!$field['required']) {
+                continue;
+            }
+            $field_id = (int) $field['id'];
+            $data     = self::getForTicket($tickets_id, $field_id);
+            if (empty($data['parent_value']) || empty($data['child_value'])) {
+                Session::addMessageAfterRedirect(
+                    '⚠️ SOC Classification requerida: selecciona "' . $field['label_parent'] . '" y "' . $field['label_child'] . '" antes de dar la solución.',
+                    false,
+                    ERROR
+                );
+                $item->input = false;
+                return;
+            }
+        }
+    }
+
     // ── DB helpers ────────────────────────────────────────────────────────────
 
     static function getForTicket(int $tickets_id, int $field_id): array {
@@ -291,5 +362,10 @@ HTML;
         } else {
             $DB->update('glpi_plugin_socfields_ticket_values', ['parent_value' => $pv, 'child_value' => $cv], ['tickets_id' => $tickets_id, 'field_id' => $field_id]);
         }
+    }
+
+    static function clearForTicket(int $tickets_id, int $field_id): void {
+        global $DB;
+        $DB->delete('glpi_plugin_socfields_ticket_values', ['tickets_id' => $tickets_id, 'field_id' => $field_id]);
     }
 }

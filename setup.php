@@ -24,10 +24,15 @@ function plugin_init_socfields() {
         ];
     }
 
-    // Block ticket from being resolved/closed without SOC fields + save values
+    // Block ticket from being closed without SOC fields + save values
     // GLPI 11: doHook dispatches object hooks by itemtype key — must be ['Ticket' => callable]
     $PLUGIN_HOOKS['pre_item_update']['socfields'] = [
         'Ticket' => ['PluginSocfieldsTicketField', 'preItemUpdate'],
+    ];
+
+    // Block adding a solution until required SOC fields are filled for the ticket
+    $PLUGIN_HOOKS['pre_item_add']['socfields'] = [
+        'ITILSolution' => ['PluginSocfieldsTicketField', 'preSolutionAdd'],
     ];
 }
 
