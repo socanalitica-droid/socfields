@@ -12,9 +12,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit();
 }
 
-// preserve_token: this endpoint fires repeatedly (once per dropdown change) while the
-// ticket page stays open, so the standalone token must stay valid across multiple calls.
-Session::checkCSRF($_POST, true);
+// GLPI's kernel-level CheckCsrfListener already validates the CSRF token for every POST
+// request (from the X-Glpi-Csrf-Token header on AJAX requests, preserving it since this
+// endpoint fires repeatedly). No need to check it again here.
 
 include_once Plugin::getPhpDir('socfields') . '/inc/config.class.php';
 include_once Plugin::getPhpDir('socfields') . '/inc/ticketfield.class.php';

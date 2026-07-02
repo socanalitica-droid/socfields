@@ -159,10 +159,17 @@ class PluginSocfieldsTicketField extends CommonGLPI {
         body.set('field_id', cfg.field_id);
         body.set('parent_value', vals[0]);
         body.set('child_value', vals[1]);
-        body.set('_glpi_csrf_token', cfg.csrf);
         fetch(cfg.save_url, {
             method: 'POST',
-            headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                // GLPI's kernel-level CSRF listener only preserves (doesn't consume) the
+                // token when it recognizes the request as AJAX — via this header, checking
+                // X-Glpi-Csrf-Token instead of the POST body. Without it, our repeated
+                // autosave calls would consume the shared page token on the first hit.
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-Glpi-Csrf-Token': cfg.csrf
+            },
             body: body.toString(),
             credentials: 'same-origin'
         }).catch(function () {});
