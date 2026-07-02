@@ -194,7 +194,11 @@ class PluginSocfieldsTicketField extends CommonGLPI {
 
     if (!required) return;
 
-    // Block submit when status → Resolved/Closed and this required field is empty
+    // Register with the global solution-submit blocker (see socf_style_injected block)
+    window.__socfRequiredFields = window.__socfRequiredFields || [];
+    window.__socfRequiredFields.push({pSel: pSel, cSel: cSel, parentLabel: {$parent_label_js}, childLabel: {$child_label_js}});
+
+    // Block submit when status → Closed and this required field is empty
     var form = document.getElementById('itil-form');
     if (form && !form.__socfListenerAdded_{$field_id}) {
         form.__socfListenerAdded_{$field_id} = true;
@@ -251,6 +255,34 @@ form.was-validated .socf-field .socf-select:valid,
         stripValid();
     }
     new MutationObserver(stripValid).observe(document.body, { subtree: true, attributeFilter: ['class'] });
+
+    // Block "Add solution" submit client-side when required SOC fields aren't filled —
+    // stops the browser navigating to itilsolution.form.php at all, so the request
+    // never reaches the server-side pre_item_add guard (which only exists as a backstop).
+    document.addEventListener('submit', function (e) {
+        var form = e.target;
+        var action = form && form.getAttribute ? (form.getAttribute('action') || '') : '';
+        if (!action || action.indexOf('itilsolution.form.php') === -1) return;
+
+        var missing = [];
+        (window.__socfRequiredFields || []).forEach(function (f) {
+            var pv = (f.pSel.tomselect ? f.pSel.tomselect.getValue() : f.pSel.value) || '';
+            var cv = (f.cSel.tomselect ? f.cSel.tomselect.getValue() : f.cSel.value) || '';
+            if (!pv || !cv) {
+                missing.push(f.parentLabel + ' / ' + f.childLabel);
+            }
+        });
+        if (!missing.length) return;
+
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        var div = document.createElement('div');
+        div.className = 'alert alert-warning d-flex align-items-center gap-2 mb-2';
+        div.innerHTML = '<i class="ti ti-alert-triangle"></i><span>SOC Classification requerida: selecciona ' +
+            missing.join(', ') + ' antes de dar la solución.</span>';
+        form.prepend(div);
+        form.scrollIntoView({behavior: 'smooth', block: 'center'});
+    }, true);
 })();
 </script>
 HTML;
