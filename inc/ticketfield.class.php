@@ -109,7 +109,9 @@ class PluginSocfieldsTicketField extends CommonGLPI {
                 'tickets_id' => $tickets_id,
                 'field_id'   => $field_id,
                 'save_url'   => $save_url,
-                'csrf'       => Session::getNewCSRFToken(),
+                // standalone: independent from the page's single-use $CURRENTCSRFTOKEN,
+                // so repeated autosave calls don't invalidate the main ticket/solution forms
+                'csrf'       => Session::getNewCSRFToken(true),
             ]);
             $parent_label_js = json_encode($parent_label);
             $child_label_js  = json_encode($child_label);

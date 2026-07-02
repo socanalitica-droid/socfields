@@ -12,7 +12,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit();
 }
 
-Session::checkCSRF($_POST);
+// preserve_token: this endpoint fires repeatedly (once per dropdown change) while the
+// ticket page stays open, so the standalone token must stay valid across multiple calls.
+Session::checkCSRF($_POST, true);
 
 include_once Plugin::getPhpDir('socfields') . '/inc/config.class.php';
 include_once Plugin::getPhpDir('socfields') . '/inc/ticketfield.class.php';
