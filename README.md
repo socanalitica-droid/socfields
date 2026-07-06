@@ -9,6 +9,7 @@ Plugin para GLPI 11 desarrollado por el **SOC Team de Linktic**. Agrega campos d
 - **Campo requerido** — cada par puede marcarse como obligatorio; si lo está, el ticket no se puede Cerrar hasta que estén seleccionados
 - **Autoguardado** — los dropdowns se guardan por AJAX apenas se seleccionan, sin esperar a enviar el formulario
 - **Bloqueo al dar solución** — si un par requerido no está diligenciado, GLPI no deja agregar la solución del ticket
+- **Webhook de cierre de caso en SOAR** — al cerrar el ticket, envía automáticamente `reason`/`rootCause` reales (los valores elegidos en el primer par en cascada) al SOAR, con el `caseId` tomado del plugin Fields. El campo AppKey nunca se re-imprime en el formulario de configuración (se deja en blanco; solo se sobrescribe si se digita un valor nuevo), para que no quede visible en el HTML de la página.
 - **Integración nativa con GLPI 11** — usa el mismo CSS del panel lateral y los dropdowns Tom Select del core
 - **Opciones por defecto** precargadas: Malicious, Not Malicious, Maintenance, Inconclusive (con sus hijos)
 

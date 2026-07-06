@@ -136,6 +136,28 @@ function plugin_socfields_install() {
         }
     }
 
+    // ── 5. SOAR close-case webhook config (single row) ──────────────────────────
+    if (!$DB->tableExists('glpi_plugin_socfields_webhook_config')) {
+        $DB->doQuery("
+            CREATE TABLE `glpi_plugin_socfields_webhook_config` (
+                `id`               int(11) UNSIGNED NOT NULL AUTO_INCREMENT,
+                `active`           tinyint(1) UNSIGNED NOT NULL DEFAULT 0,
+                `url`              text NOT NULL,
+                `appkey`           text NOT NULL,
+                `comment_template` text NOT NULL,
+                PRIMARY KEY (`id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci ROW_FORMAT=DYNAMIC
+        ");
+
+        $DB->insert('glpi_plugin_socfields_webhook_config', [
+            'id'               => 1,
+            'active'           => 0,
+            'url'              => '',
+            'appkey'           => '',
+            'comment_template' => 'Cerrado desde GLPI',
+        ]);
+    }
+
     return true;
 }
 
@@ -147,6 +169,7 @@ function plugin_socfields_uninstall() {
         'glpi_plugin_socfields_parent_options',
         'glpi_plugin_socfields_fields',
         'glpi_plugin_socfields_ticket_values',
+        'glpi_plugin_socfields_webhook_config',
         // legacy tables
         'glpi_plugin_socfields_config',
         'glpi_plugin_socfields_tickets',

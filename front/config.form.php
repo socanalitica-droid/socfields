@@ -8,6 +8,7 @@ include_once Plugin::getPhpDir('socfields') . '/inc/config.class.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save'])) {
     PluginSocfieldsConfig::saveFromPost($_POST);
+    PluginSocfieldsConfig::saveWebhookConfig($_POST['webhook'] ?? []);
     Session::addMessageAfterRedirect('Configuración guardada correctamente.', true, INFO);
     Html::back();
     exit();
@@ -15,7 +16,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save'])) {
 
 Html::header('SOC Fields — Configuración', $_SERVER['REQUEST_URI'], 'config', 'PluginSocfieldsConfig');
 
-$fields = PluginSocfieldsConfig::getAllFields();
+$fields      = PluginSocfieldsConfig::getAllFields();
+$webhook_cfg = PluginSocfieldsConfig::getWebhookConfig();
 
 // Count existing children across all fields (for JS counter init)
 $total_child_count = 0;
@@ -50,6 +52,45 @@ foreach ($fields as $fidx => $field) {
 
   <form method="post" action="<?= htmlspecialchars($_SERVER['REQUEST_URI']) ?>">
     <input type="hidden" name="_glpi_csrf_token" value="<?= htmlspecialchars(Session::getNewCSRFToken()) ?>">
+
+    <!-- ── Webhook cierre de caso (SOAR) ──────────────────────────────── -->
+    <div class="card mb-4 border-dark">
+      <div class="card-header bg-dark bg-opacity-10 d-flex align-items-center gap-2">
+        <i class="ti ti-webhook"></i>
+        <span class="fw-bold">Webhook — Cierre de caso en SOAR</span>
+        <div class="form-check form-switch ms-auto mb-0">
+          <input class="form-check-input" type="checkbox" name="webhook[active]" value="1"
+                 id="webhook_active" <?= !empty($webhook_cfg['active']) ? 'checked' : '' ?>>
+          <label class="form-check-label small" for="webhook_active">Activo</label>
+        </div>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small">
+          Cuando un ticket pasa a <strong>Cerrado</strong> con la clasificación SOC diligenciada,
+          se envía automáticamente este cierre al SOAR (reemplaza al Webhook nativo de GLPI para
+          evitar valores fijos como "NotMalicious").
+        </p>
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label fw-semibold small text-muted text-uppercase">URL</label>
+            <input type="text" name="webhook[url]" class="form-control"
+                   value="<?= htmlspecialchars($webhook_cfg['url'] ?? '') ?>"
+                   placeholder="https://.../api/external/v1/cases/CloseCase">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold small text-muted text-uppercase">AppKey</label>
+            <input type="password" name="webhook[appkey]" class="form-control"
+                   value="" autocomplete="new-password"
+                   placeholder="<?= !empty($webhook_cfg['appkey']) ? '•••••••• (ya configurada — deja en blanco para no cambiarla)' : 'Ej: 17f529ab-3506-...' ?>">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold small text-muted text-uppercase">Comentario</label>
+            <input type="text" name="webhook[comment_template]" class="form-control"
+                   value="<?= htmlspecialchars($webhook_cfg['comment_template'] ?? 'Cerrado desde GLPI') ?>">
+          </div>
+        </div>
+      </div>
+    </div>
 
     <div id="socf-fields-container">
 <?php

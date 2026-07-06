@@ -77,6 +77,33 @@ class PluginSocfieldsConfig extends CommonGLPI {
         return $labels;
     }
 
+    // ── SOAR close-case webhook config ───────────────────────────────────────
+
+    static function getWebhookConfig(): array {
+        global $DB;
+        foreach ($DB->request(['FROM' => 'glpi_plugin_socfields_webhook_config', 'LIMIT' => 1]) as $row) {
+            return $row;
+        }
+        return [];
+    }
+
+    // Never overwrites appkey with an empty value — leave the field blank in the
+    // form to keep the currently stored key unchanged (so it never round-trips
+    // back into rendered HTML for anyone to read from the page source).
+    static function saveWebhookConfig(array $input): void {
+        global $DB;
+        $data = [
+            'active'           => isset($input['active']) ? 1 : 0,
+            'url'              => trim($input['url'] ?? ''),
+            'comment_template' => trim($input['comment_template'] ?? '') ?: 'Cerrado desde GLPI',
+        ];
+        $appkey = trim($input['appkey'] ?? '');
+        if ($appkey !== '') {
+            $data['appkey'] = $appkey;
+        }
+        $DB->update('glpi_plugin_socfields_webhook_config', $data, ['id' => 1]);
+    }
+
     // ── Save from admin form ──────────────────────────────────────────────────
 
     static function saveFromPost(array $post): void {

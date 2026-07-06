@@ -313,6 +313,10 @@ HTML;
         // Determine the resulting status after this save
         $new_status = (int) ($item->input['status'] ?? $_POST['status'] ?? $item->fields['status'] ?? 0);
         $is_closing = ($new_status === CommonITILObject::CLOSED);
+        // $item->fields still holds the pre-update DB row at this point in CommonDBTM::update() —
+        // used to fire the SOAR webhook only on the actual open→closed transition, not on
+        // every subsequent edit of an already-closed ticket.
+        $was_closed = ((int) ($item->fields['status'] ?? 0) === CommonITILObject::CLOSED);
 
         // Only save SOC values when the ticket is being Closed —
         // this prevents the "saved" visual indicator from appearing on other status changes.
@@ -350,7 +354,75 @@ HTML;
                     return;
                 }
             }
+
+            if (!$was_closed) {
+                self::sendCloseCaseWebhook($tickets_id);
+            }
         }
+    }
+
+    // ── SOAR close-case webhook ─────────────────────────────────────────────────
+
+    static function getCaseId(int $tickets_id): string {
+        global $DB;
+        if (!$DB->tableExists('glpi_plugin_fields_ticketsecops')) {
+            return '';
+        }
+        foreach ($DB->request(['FROM' => 'glpi_plugin_fields_ticketsecops', 'WHERE' => ['items_id' => $tickets_id], 'LIMIT' => 1]) as $row) {
+            $case_id = trim($row['caseidfield'] ?? '');
+            return (strtoupper($case_id) === 'NA') ? '' : $case_id;
+        }
+        return '';
+    }
+
+    static function sendCloseCaseWebhook(int $tickets_id): void {
+        global $DB;
+        if (!$DB->tableExists('glpi_plugin_socfields_webhook_config')) {
+            return;
+        }
+
+        include_once Plugin::getPhpDir('socfields') . '/inc/config.class.php';
+        $cfg = PluginSocfieldsConfig::getWebhookConfig();
+        if (empty($cfg['active']) || empty($cfg['url']) || empty($cfg['appkey'])) {
+            return;
+        }
+
+        $case_id = self::getCaseId($tickets_id);
+        if ($case_id === '') {
+            return;
+        }
+
+        // Reason/root cause come from the first configured cascade field pair.
+        $all_fields = PluginSocfieldsConfig::getAllFields();
+        if (empty($all_fields)) {
+            return;
+        }
+        $data       = self::getForTicket($tickets_id, (int) $all_fields[0]['id']);
+        $reason     = $data['parent_value'] ?? '';
+        $root_cause = $data['child_value']  ?? '';
+        if ($reason === '' || $root_cause === '') {
+            return;
+        }
+
+        $payload = json_encode([
+            'caseId'    => $case_id,
+            'reason'    => $reason,
+            'rootCause' => $root_cause,
+            'comment'   => $cfg['comment_template'] ?: 'Cerrado desde GLPI',
+        ]);
+
+        $ch = curl_init($cfg['url']);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Accept: application/json',
+            'AppKey: ' . $cfg['appkey'],
+        ]);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+        curl_exec($ch);
+        curl_close($ch);
     }
 
     // ── pre_item_add (ITILSolution): block giving a solution until required SOC fields are saved ──
