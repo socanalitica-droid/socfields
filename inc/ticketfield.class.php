@@ -404,6 +404,13 @@ HTML;
             return;
         }
 
+        // Siemplify's CloseCase API validates "reason" against a fixed enum
+        // (Malicious, NotMalicious, Maintenance, Inconclusive — no spaces), while
+        // "rootCause" accepts free text. Our dropdown label is "Not Malicious"
+        // (with a space) so it must be collapsed or the API rejects the call
+        // with a 400 "condition was not met for 'Reason'" error.
+        $reason = str_replace(' ', '', $reason);
+
         $payload = json_encode([
             'caseId'    => $case_id,
             'reason'    => $reason,
